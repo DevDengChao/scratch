@@ -2526,9 +2526,10 @@ pub fn run() {
             }
 
             // Handle CLI args on first launch; determine whether to show the main window.
-            // When a standalone preview is opened (file outside the notes folder), the main
-            // window is closed immediately so users only see the preview window — not the
-            // folder-picker dialog that appears when no notes folder is configured.
+            // When a standalone preview is opened (file outside the notes folder) and the
+            // notes folder is already configured, the main window is closed so users only
+            // see the preview. When no notes folder is configured yet, the main window is
+            // always shown so new users can complete onboarding via the FolderPicker.
             let args: Vec<String> = std::env::args().collect();
             let opened_preview = if args.len() > 1 {
                 let cwd = std::env::current_dir()
@@ -2541,11 +2542,23 @@ pub fn run() {
             };
 
             if let Some(main_window) = app.get_webview_window("main") {
-                if opened_preview {
-                    // Close the hidden main window; only the preview window should be visible.
+                let has_notes_folder = app
+                    .state::<AppState>()
+                    .app_config
+                    .read()
+                    .expect("app_config read lock")
+                    .notes_folder
+                    .is_some();
+
+                if opened_preview && has_notes_folder {
+                    // Existing user: notes folder is configured and a standalone preview
+                    // was opened. Close the hidden main window so only the preview is visible.
                     let _ = main_window.close();
                 } else {
-                    // No standalone preview — show the main app window normally.
+                    // Show the main window when:
+                    // - No standalone preview was opened (normal launch), OR
+                    // - No notes folder is configured yet (new user needs FolderPicker
+                    //   for onboarding, even if a preview is also showing).
                     let _ = main_window.show();
                 }
             }
